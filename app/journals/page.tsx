@@ -307,11 +307,18 @@ export default function JournalsPage() {
 
   const searchTrack = async () => {
     if (!trackQuery.trim()) return;
+    setLoading(true);
+    setError("");
     try {
       const res = await fetch(
         `/api/spotify/search?q=${encodeURIComponent(trackQuery.trim())}`
       );
       const json = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(json.detail || json.error || "Search failed");
+      }
+
       const arr = (json.items || []).map((t: any) => ({
         id: t.id,
         name: t.name,
@@ -319,9 +326,20 @@ export default function JournalsPage() {
         image: t.image,
         preview_url: t.preview_url,
       })) as TrackLite[];
+      
+      if (arr.length === 0) {
+        setError("No songs found matching your search. Try a different query.");
+      }
+      
       setTrackResults(arr);
-    } catch {}
+    } catch (e: any) {
+      console.error("Spotify search error:", e);
+      setError(e.message || "Failed to search Spotify. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   const closeDialog = () => {
     setDialogOpen(false);

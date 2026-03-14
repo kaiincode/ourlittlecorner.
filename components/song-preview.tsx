@@ -44,31 +44,37 @@ export default function SongPreview({ trackId, name, artists, image, previewUrl,
         <div className="text-[11px] text-gray-600 truncate">{artists}</div>
         {!hideControls && (
           <div className="mt-1 flex items-center gap-2">
-            <button
-              disabled={!previewUrl}
-              onClick={async (e)=>{
-                e.stopPropagation()
-              const audio = audioRef.current
-              if (!audio || !previewUrl) return
-              if (isPlaying) {
-                audio.pause()
-                setIsPlaying(false)
-              } else {
-                try {
-                  await audio.play()
-                  setIsPlaying(true)
-                } catch {}
-              }
-              }}
-              className="px-3 py-1.5 text-xs rounded-full border border-gray-900 text-gray-900 bg-white disabled:opacity-50"
-            >
-              {isPlaying ? 'Pause' : 'Play preview'}
-            </button>
+            <div className="flex flex-col">
+              <button
+                disabled={!previewUrl}
+                onClick={async (e)=>{
+                  e.stopPropagation()
+                const audio = audioRef.current
+                if (!audio || !previewUrl) return
+                if (isPlaying) {
+                  audio.pause()
+                  setIsPlaying(false)
+                } else {
+                  try {
+                    await audio.play()
+                    setIsPlaying(true)
+                  } catch {}
+                }
+                }}
+                className="px-3 py-1.5 text-xs rounded-full border border-gray-900 text-gray-900 bg-white disabled:opacity-30 disabled:border-gray-300 disabled:text-gray-400"
+              >
+                {isPlaying ? 'Pause' : 'Play preview'}
+              </button>
+              {!previewUrl && (
+                <span className="text-[9px] text-gray-400 mt-0.5 ml-1">Preview unavailable</span>
+              )}
+            </div>
             {trackId && (
-              <a href={`https://open.spotify.com/track/${trackId}`} target="_blank" rel="noreferrer" className="text-[11px] text-gray-700 underline" onClick={(e)=> e.stopPropagation()}>Open in Spotify</a>
+              <a href={`https://open.spotify.com/track/${trackId}`} target="_blank" rel="noreferrer" className="text-[11px] text-gray-700 underline h-fit" onClick={(e)=> e.stopPropagation()}>Open in Spotify</a>
             )}
           </div>
         )}
+
       </div>
       <audio ref={audioRef} src={previewUrl || undefined} preload="none" />
     </div>
