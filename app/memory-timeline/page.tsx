@@ -12,7 +12,82 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import { Calendar, Music, Image, Heart, BookOpen, Clock, ExternalLink } from "lucide-react"
-import { formatLocalDate, formatTimelineDate } from '@/lib/dateUtils'
+import { formatLocalDate, formatTimelineDate } from '@/lib/utils'
+import { contentHasFontStyling, htmlToDisplayHtml } from "@/lib/utils"
+
+type JournalTheme = {
+  name: string
+  color: string
+  fontFamilyCss: string
+  fontFace: string
+}
+
+const NOTE_THEMES: JournalTheme[] = [
+  {
+    name: "Amber Script",
+    color: "#f59e0b",
+    fontFamilyCss: "var(--font-handwriting), cursive",
+    fontFace: "Mynerve",
+  },
+  {
+    name: "Indigo Note",
+    color: "#3b82f6",
+    fontFamilyCss: "'Crimson Pro', serif",
+    fontFace: "Crimson Pro",
+  },
+  {
+    name: "Rose",
+    color: "#f43f5e",
+    fontFamilyCss: "'Source Serif 4', serif",
+    fontFace: "Source Serif 4",
+  },
+  {
+    name: "Emerald Classic",
+    color: "#10b981",
+    fontFamilyCss: "'Playfair Display', serif",
+    fontFace: "Playfair Display",
+  },
+  {
+    name: "Violet Ink",
+    color: "#8b5cf6",
+    fontFamilyCss: "'Cormorant Garamond', serif",
+    fontFace: "Cormorant Garamond",
+  },
+  {
+    name: "Teal Dream",
+    color: "#14b8a6",
+    fontFamilyCss: "'Dancing Script', cursive",
+    fontFace: "Dancing Script",
+  },
+  {
+    name: "Green Whisper",
+    color: "#22c55e",
+    fontFamilyCss: "'Alex Brush', cursive",
+    fontFace: "Alex Brush",
+  },
+  {
+    name: "Pink Bloom",
+    color: "#fb7185",
+    fontFamilyCss: "'Great Vibes', cursive",
+    fontFace: "Great Vibes",
+  },
+  {
+    name: "Cyan Light",
+    color: "#06b6d4",
+    fontFamilyCss: "'Pinyon Script', cursive",
+    fontFace: "Pinyon Script",
+  },
+]
+
+const DEFAULT_NOTE_THEME =
+  NOTE_THEMES.find((t) => t.fontFace === "Mynerve") ?? NOTE_THEMES[0]!
+
+function getThemeByColor(color: string | null | undefined): JournalTheme | null {
+  if (!color) return null
+  return (
+    NOTE_THEMES.find((t) => t.color.toLowerCase() === color.toLowerCase()) || null
+  )
+}
 
 type TimelineItem = {
   id: string
@@ -26,6 +101,8 @@ type TimelineItem = {
     artists: string
     image: string
   }
+  cover_url?: string | null
+  spotify_track_id?: string | null
   folder?: string
   author_name?: string
 }
@@ -77,6 +154,8 @@ export default function MemoryTimelinePage() {
             content: journal.content,
             date: journal.created_at,
             image: journal.spotify_image,
+            cover_url: journal.cover_url,
+            spotify_track_id: journal.spotify_track_id,
             author_name: journal.author ? (authorMap.get(journal.author) || `User ${journal.author.slice(0, 8)}`) : null,
             song: journal.spotify_track_name ? {
               name: journal.spotify_track_name,
@@ -396,11 +475,24 @@ export default function MemoryTimelinePage() {
                               </div>
 
                               {/* Content Preview */}
-                              {item.content && (
-                                <p className="text-gray-600 text-sm mb-4 line-clamp-3 leading-relaxed">
-                                  {item.content}
-                                </p>
-                              )}
+                              {item.content ? (
+                                <div
+                                  className="text-gray-600 text-sm mb-4 line-clamp-3 leading-relaxed"
+                                  style={{
+                                    fontFamily:
+                                      contentHasFontStyling(item.content)
+                                        ? undefined
+                                        : item.spotify_track_id
+                                            ? "var(--font-handwriting), cursive"
+                                            : getThemeByColor(item.cover_url)
+                                                  ?.fontFamilyCss ||
+                                              DEFAULT_NOTE_THEME.fontFamilyCss,
+                                  }}
+                                  dangerouslySetInnerHTML={{
+                                    __html: htmlToDisplayHtml(item.content),
+                                  }}
+                                />
+                              ) : null}
 
                               {/* Song Info */}
                               {item.song && (

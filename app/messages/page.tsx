@@ -32,8 +32,8 @@ import {
   Star
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { filterMessages } from '@/lib/messageUtils';
-import { loadMessagesFromSupabase, searchMessages, getAvailableDates } from '@/lib/supabaseMessages';
+import { filterMessages } from '@/lib/utils';
+import { loadMessagesFromSupabase, searchMessages, getAvailableDates } from '@/lib/supabase/supabaseMessages';
 import { supabase } from '@/lib/supabase/supabaseClient';
 import { ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Label } from 'recharts';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '@/components/ui/chart';

@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, Search, Calendar, Grid, List, Folder, Plus, FolderPlus, GripVertical, Trash2, Download } from "lucide-react"
-import { formatLocalDate } from '@/lib/dateUtils'
+import { formatLocalDate } from '@/lib/utils'
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 type FilterPreset = 'none' | 'vintage' | 'warm' | 'cool' | 'bright' | 'soft' | 'dramatic' | 'blackwhite'

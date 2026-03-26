@@ -20,7 +20,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+import RichTextEditor from "@/components/rich-text-editor";
+import {
+  contentHasFontStyling,
+  htmlToDisplayHtml,
+  sanitizeRichTextHtml,
+  stripHtml,
+} from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -45,7 +51,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { formatLocalDate } from '@/lib/dateUtils';
+import { formatLocalDate } from '@/lib/utils';
 
 type Journal = {
   id: string;
@@ -69,6 +75,68 @@ type TrackLite = {
   image?: string;
   preview_url?: string | null;
 };
+
+type JournalTheme = {
+  name: string;
+  color: string; // stored in `cover_url` when no song is selected
+  fontFamilyCss: string; // applied to note content
+  fontFace: string; // used by the editor font dropdown
+};
+
+const NOTE_THEMES: JournalTheme[] = [
+  {
+    name: "Default Handwriting",
+    color: "#f59e0b",
+    fontFamilyCss: "var(--font-handwriting), 'Mynerve', cursive",
+    fontFace: "Mynerve",
+  },
+  {
+    name: "Elegant Serif",
+    color: "#f43f5e",
+    fontFamilyCss: "'Playfair Display', serif",
+    fontFace: "Playfair Display",
+  },
+  {
+    name: "Modern Sans",
+    color: "#f97316",
+    fontFamilyCss: "'Montserrat', sans-serif",
+    fontFace: "Montserrat",
+  },
+  {
+    name: "Romantic Script",
+    color: "#0ea5e9",
+    fontFamilyCss: "'Satisfy', cursive",
+    fontFace: "Satisfy",
+  },
+  {
+    name: "Bold Display",
+    color: "#a855f7",
+    fontFamilyCss: "'Pacifico', cursive",
+    fontFace: "Pacifico",
+  },
+  {
+    name: "Logic Mono",
+    color: "#10b981",
+    fontFamilyCss: "'JetBrains Mono', monospace",
+    fontFace: "JetBrains Mono",
+  },
+];
+
+function pickRandomTheme(): JournalTheme {
+  return NOTE_THEMES[Math.floor(Math.random() * NOTE_THEMES.length)];
+}
+
+function getThemeByColor(color: string | null | undefined): JournalTheme | null {
+  if (!color) return null;
+  return NOTE_THEMES.find((t) => t.color.toLowerCase() === color.toLowerCase()) || null;
+}
+
+const DEFAULT_NOTE_THEME: JournalTheme =
+  NOTE_THEMES.find((t) => t.fontFace === "Mynerve") ?? NOTE_THEMES[0]!;
+
+function isHexColor(value: string | null | undefined) {
+  return typeof value === "string" && /^#[0-9A-Fa-f]{6}$/.test(value);
+}
 
 export default function JournalsPage() {
   const { user } = useAuth();
@@ -226,6 +294,7 @@ export default function JournalsPage() {
   const [trackQuery, setTrackQuery] = useState("");
   const [trackResults, setTrackResults] = useState<TrackLite[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<TrackLite | null>(null);
+  const [noteTheme, setNoteTheme] = useState<JournalTheme>(pickRandomTheme());
 
   const [viewOpen, setViewOpen] = useState<Journal | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -238,13 +307,18 @@ export default function JournalsPage() {
       if (journal) {
         setTitle(journal.title || "");
         setContent(journal.content || "");
-        setSelectedTrack({
-          id: journal.spotify_track_id || "",
-          name: journal.spotify_track_name || "",
-          artists: journal.spotify_artists || "",
-          image: journal.spotify_image || "",
-          preview_url: journal.spotify_preview_url,
-        });
+        if (journal.spotify_track_id) {
+          setSelectedTrack({
+            id: journal.spotify_track_id || "",
+            name: journal.spotify_track_name || "",
+            artists: journal.spotify_artists || "",
+            image: journal.spotify_image || "",
+            preview_url: journal.spotify_preview_url,
+          });
+        } else {
+          setSelectedTrack(null);
+        }
+        setNoteTheme(getThemeByColor(journal.cover_url) ?? pickRandomTheme());
         setDialogOpen(true);
       }
     }
@@ -349,22 +423,38 @@ export default function JournalsPage() {
     setTrackQuery("");
     setTrackResults([]);
     setSelectedTrack(null);
+    setNoteTheme(pickRandomTheme());
+  };
+
+  const openCreateDialog = () => {
+    setEditId(null);
+    setTitle("");
+    setContent("");
+    setTrackQuery("");
+    setTrackResults([]);
+    setSelectedTrack(null);
+    setNoteTheme(pickRandomTheme());
+    setDialogOpen(true);
   };
 
   const saveJournal = async () => {
     try {
-      if (!selectedTrack) throw new Error("Please select a song");
-      if (!(title.trim() || content.trim()))
+      const contentText = stripHtml(content || "");
+      if (!(title.trim() || contentText))
         throw new Error("Please add a title or some content");
+
+      const sanitizedContent = contentText ? sanitizeRichTextHtml(content || "") : null;
+      const hasSong = !!selectedTrack?.id;
+
       const payload: Partial<Journal> = {
         title: title.trim() || null,
-        content: content.trim() || null,
-        cover_url: selectedTrack?.image || null,
-        spotify_track_id: selectedTrack?.id || null,
-        spotify_track_name: selectedTrack?.name || null,
-        spotify_artists: selectedTrack?.artists || null,
-        spotify_image: selectedTrack?.image || null,
-        spotify_preview_url: selectedTrack?.preview_url || null,
+        content: sanitizedContent,
+        cover_url: hasSong ? selectedTrack?.image || null : noteTheme.color,
+        spotify_track_id: hasSong ? selectedTrack?.id || null : null,
+        spotify_track_name: hasSong ? selectedTrack?.name || null : null,
+        spotify_artists: hasSong ? selectedTrack?.artists || null : null,
+        spotify_image: hasSong ? selectedTrack?.image || null : null,
+        spotify_preview_url: hasSong ? selectedTrack?.preview_url || null : null,
       };
       if (editId) {
         const { data, error } = await supabase
@@ -438,7 +528,7 @@ export default function JournalsPage() {
             Your Notes
           </motion.div>
           <Button
-            onClick={() => setDialogOpen(true)}
+            onClick={openCreateDialog}
             className="gap-2 w-full sm:w-auto"
           >
             <Plus className="w-4 h-4" />
@@ -725,7 +815,7 @@ export default function JournalsPage() {
                 ? `No notes match "${searchQuery}"`
                 : "Start capturing your thoughts with music"}
             </p>
-            <Button onClick={() => setDialogOpen(true)} className="gap-2">
+            <Button onClick={openCreateDialog} className="gap-2">
               <Plus className="w-4 h-4" />
               Create First Note
             </Button>
@@ -777,9 +867,31 @@ export default function JournalsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                        <Music className="w-8 h-8 text-gray-400" />
-                      </div>
+                      isHexColor(journal.cover_url) ? (
+                        <div
+                          className="relative w-full h-full flex items-center justify-center"
+                          style={{
+                            background: `linear-gradient(135deg, ${
+                              journal.cover_url
+                            }33 0%, rgba(255,255,255,0.25) 100%)`,
+                          }}
+                        >
+                          <div className="absolute bottom-2 left-2 right-2">
+                            <div className="text-white text-xs font-medium truncate">
+                              {getThemeByColor(journal.cover_url)?.name ||
+                                DEFAULT_NOTE_THEME.name}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                          <div className="absolute bottom-2 left-2 right-2">
+                            <div className="text-white text-xs font-medium truncate">
+                              {DEFAULT_NOTE_THEME.name}
+                            </div>
+                          </div>
+                        </div>
+                      )
                     )}
                     
                     {/* Edit/Delete buttons */}
@@ -820,13 +932,36 @@ export default function JournalsPage() {
                     <div className="font-handwriting text-lg sm:text-xl text-gray-800 mb-2 line-clamp-1">
                       {journal.title || "Untitled"}
                     </div>
-                    <div
-                      className={`font-handwriting text-sm sm:text-base text-gray-600 leading-relaxed ${
-                        viewMode === "list" ? "line-clamp-3" : "line-clamp-2"
-                      }`}
-                    >
-                      {journal.content || "No content..."}
-                    </div>
+                    {journal.content ? (
+                      <div
+                        className={`text-sm sm:text-base text-gray-600 leading-relaxed ${
+                          viewMode === "list" ? "line-clamp-3" : "line-clamp-2"
+                        }`}
+                        style={{
+                          fontFamily: contentHasFontStyling(journal.content)
+                            ? undefined
+                            : journal.spotify_track_id
+                                ? "var(--font-handwriting), cursive"
+                                : getThemeByColor(journal.cover_url)
+                                    ?.fontFamilyCss ||
+                                  DEFAULT_NOTE_THEME.fontFamilyCss,
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: htmlToDisplayHtml(journal.content),
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className={`text-sm sm:text-base text-gray-600 leading-relaxed ${
+                          viewMode === "list" ? "line-clamp-3" : "line-clamp-2"
+                        }`}
+                        style={{
+                          fontFamily: undefined,
+                        }}
+                      >
+                        No content...
+                      </div>
+                    )}
                     <div className="mt-3 flex items-center justify-between">
                       <div className="text-[11px] sm:text-xs text-gray-400">
                         {journal.created_at
@@ -931,7 +1066,7 @@ export default function JournalsPage() {
             <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Music className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-medium">Choose a song</span>
+                <span className="text-sm font-medium">Choose a song (optional)</span>
             </div>
               
               <div className="flex items-center gap-2">
@@ -955,6 +1090,27 @@ export default function JournalsPage() {
                     image={selectedTrack.image}
                     previewUrl={selectedTrack.preview_url}
                   />
+                </div>
+              )}
+
+              {!selectedTrack && trackResults.length === 0 && (
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-14 h-14 rounded-lg border border-gray-200 shadow-sm"
+                      style={{
+                        background: `linear-gradient(135deg, ${noteTheme.color} 0%, rgba(255,255,255,0.18) 100%)`,
+                      }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {noteTheme.name}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">
+                        Theme for this note
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -987,13 +1143,22 @@ export default function JournalsPage() {
                 placeholder="Note title..."
                 className="text-lg"
               />
-              
-              <Textarea
-                  value={content}
-                onChange={(e) => setContent(e.target.value)}
+
+              <RichTextEditor
+                value={content}
+                onChange={(nextHtml) => setContent(nextHtml)}
                 placeholder="Write your thoughts..."
-                className="min-h-[200px] text-base leading-relaxed resize-none"
-                />
+                baseFontFace={
+                  selectedTrack
+                    ? "Mynerve"
+                    : noteTheme.fontFace || DEFAULT_NOTE_THEME.fontFace
+                }
+                baseFontFamilyCss={
+                  selectedTrack
+                    ? "var(--font-handwriting), cursive"
+                    : noteTheme.fontFamilyCss || DEFAULT_NOTE_THEME.fontFamilyCss
+                }
+              />
               </div>
 
             <div className="flex justify-end gap-3">
@@ -1002,7 +1167,7 @@ export default function JournalsPage() {
               </Button>
               <Button 
                 onClick={saveJournal} 
-                disabled={!selectedTrack || !(title.trim() || content.trim())}
+                disabled={!(title.trim() || stripHtml(content || "").trim())}
               >
                 {editId ? "Save Changes" : "Create Note"}
               </Button>
@@ -1018,16 +1183,29 @@ export default function JournalsPage() {
              <DialogTitle>{viewOpen?.title || 'Untitled Note'}</DialogTitle>
            </DialogHeader>
            
-           {/* Enhanced song theme header */}
-           {viewOpen?.spotify_image && (
+          {/* Enhanced song theme header (album art or random theme color) */}
+          {(viewOpen?.spotify_image || isHexColor(viewOpen?.cover_url)) && (
              <div className="relative h-48 overflow-hidden">
                {/* Full album art background with overlay */}
                <div className="absolute inset-0">
-               <img 
-                 src={viewOpen.spotify_image} 
-                 alt={viewOpen.spotify_track_name || "Song"} 
-                   className="w-full h-full object-cover" 
-               />
+                {viewOpen?.spotify_image ? (
+                  <img
+                    src={viewOpen.spotify_image}
+                    alt={viewOpen.spotify_track_name || "Song"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div
+                    className="w-full h-full"
+                    style={{
+                      background: `linear-gradient(135deg, ${
+                        isHexColor(viewOpen?.cover_url)
+                          ? viewOpen?.cover_url
+                          : "#f59e0b"
+                      } 0%, rgba(255,255,255,0.18) 100%)`,
+                    }}
+                  />
+                )}
                  <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-white" />
                       </div>
 
@@ -1043,13 +1221,21 @@ export default function JournalsPage() {
                     setEditId(viewOpen.id)
                     setTitle(viewOpen.title || '')
                     setContent(viewOpen.content || '')
-                       setSelectedTrack({ 
-                         id: viewOpen.spotify_track_id || '', 
-                         name: viewOpen.spotify_track_name || '', 
-                         artists: viewOpen.spotify_artists || '', 
-                         image: viewOpen.spotify_image || '', 
-                         preview_url: viewOpen.spotify_preview_url || '' 
-                       })
+                      setSelectedTrack(
+                        viewOpen.spotify_track_id
+                          ? {
+                              id: viewOpen.spotify_track_id || "",
+                              name: viewOpen.spotify_track_name || "",
+                              artists: viewOpen.spotify_artists || "",
+                              image: viewOpen.spotify_image || "",
+                              preview_url:
+                                viewOpen.spotify_preview_url || null,
+                            }
+                          : null
+                      )
+                      setNoteTheme(
+                        getThemeByColor(viewOpen?.cover_url) ?? DEFAULT_NOTE_THEME
+                      )
                        setViewOpen(null)
                      }}
                        className="h-9 w-9 p-0 bg-white/90 hover:bg-white shadow-lg backdrop-blur-sm"
@@ -1081,21 +1267,51 @@ export default function JournalsPage() {
                {/* Song info - bottom aligned with elegant card */}
                <div className="absolute bottom-0 left-0 right-0 p-6">
                  <div className="flex items-end gap-4">
-                   <div className="relative">
-                     <img 
-                       src={viewOpen.spotify_image} 
-                       alt={viewOpen.spotify_track_name || "Song"}
-                       className="w-24 h-24 rounded-lg object-cover shadow-2xl border-2 border-white/80" 
-                     />
-                     <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/20 to-transparent" />
-           </div>
+                  <div className="relative">
+                    {viewOpen?.spotify_image ? (
+                      <img
+                        src={viewOpen.spotify_image}
+                        alt={viewOpen.spotify_track_name || "Song"}
+                        className="w-24 h-24 rounded-lg object-cover shadow-2xl border-2 border-white/80"
+                      />
+                    ) : (
+                      <div
+                        className="w-24 h-24 rounded-lg shadow-2xl border-2 border-white/80"
+                        style={{
+                          background: `linear-gradient(135deg, ${
+                            isHexColor(viewOpen?.cover_url)
+                              ? viewOpen?.cover_url
+                              : "#f59e0b"
+                          } 0%, rgba(255,255,255,0.25) 100%)`,
+                        }}
+                      />
+                    )}
+                    <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/20 to-transparent" />
+                    {!viewOpen?.spotify_image && (
+                      null
+                    )}
+                  </div>
                    <div className="flex-1 pb-1 min-w-0">
-                     <div className="font-handwriting text-3xl text-white drop-shadow-lg truncate mb-1">
-                       {viewOpen.spotify_track_name}
-                     </div>
-                     <div className="font-handwriting text-lg text-white/95 drop-shadow truncate">
-                       {viewOpen.spotify_artists}
-                     </div>
+                    {viewOpen?.spotify_track_name ? (
+                      <>
+                        <div className="font-handwriting text-3xl text-white drop-shadow-lg truncate mb-1">
+                          {viewOpen.spotify_track_name}
+                        </div>
+                        <div className="font-handwriting text-lg text-white/95 drop-shadow truncate">
+                          {viewOpen.spotify_artists}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-handwriting text-3xl text-white drop-shadow-lg truncate mb-1">
+                          {getThemeByColor(viewOpen?.cover_url)?.name ||
+                            DEFAULT_NOTE_THEME.name}
+                        </div>
+                        <div className="font-handwriting text-lg text-white/95 drop-shadow truncate">
+                          Your journal
+                        </div>
+                      </>
+                    )}
                    </div>
                  </div>
                </div>
@@ -1134,9 +1350,28 @@ export default function JournalsPage() {
 
             {/* Note content - much bigger text */}
             <div className="relative pl-24 pr-8">
-              <div className="font-handwriting text-2xl sm:text-3xl md:text-4xl text-gray-800 leading-relaxed whitespace-pre-wrap min-h-[300px]">
-                {viewOpen?.content || "No content available."}
-            </div>
+              <div
+                className="text-2xl sm:text-3xl md:text-4xl text-gray-800 leading-relaxed min-h-[300px]"
+                style={{
+                  fontFamily:
+                    viewOpen?.content && contentHasFontStyling(viewOpen.content)
+                      ? undefined
+                      : viewOpen?.spotify_track_id
+                          ? "var(--font-handwriting), cursive"
+                          : getThemeByColor(viewOpen?.cover_url)
+                                ?.fontFamilyCss || DEFAULT_NOTE_THEME.fontFamilyCss,
+                }}
+              >
+                {viewOpen?.content ? (
+                  <div
+                    dangerouslySetInnerHTML={{
+                      __html: htmlToDisplayHtml(viewOpen.content),
+                    }}
+                  />
+                ) : (
+                  "No content available."
+                )}
+              </div>
           </div>
         </div>
         </DialogContent>

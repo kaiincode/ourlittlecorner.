@@ -17,7 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Calendar, Heart, Gift, Star, Trash2, Plus, Search, Filter, SortAsc, SortDesc, Grid, List, Eye, EyeOff } from "lucide-react"
-import { formatLocalDate } from '@/lib/dateUtils'
+import { formatLocalDate } from '@/lib/utils'
 
 type SpecialDay = {
   id: string

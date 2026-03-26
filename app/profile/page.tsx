@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Upload, User, Save } from "lucide-react"
-import { formatLocalDate } from '@/lib/dateUtils'
+import { formatLocalDate } from '@/lib/utils'
 import { supabase } from "@/lib/supabase/supabaseClient"
 
 export default function ProfilePage() {
